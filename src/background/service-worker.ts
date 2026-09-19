@@ -42,6 +42,38 @@ chrome.runtime.onMessage.addListener(
 
       return true;
     }
+
+    if (message.type === "SET_LOFI_MODE") {
+  setLofiMode(message.enabled)
+    .then(sendResponse)
+    .catch((error: unknown) => {
+      sendResponse({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to change Lofi mode.",
+      });
+    });
+
+  return true;
+}
+
+if (message.type === "GET_AUDIO_STATE") {
+  getAudioState()
+    .then(sendResponse)
+    .catch((error: unknown) => {
+      sendResponse({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to get audio state.",
+      });
+    });
+
+  return true;
+}
   },
 );
 
@@ -118,6 +150,43 @@ async function startAudioCapture(
   });
 
   return response;
+}
+
+
+async function setLofiMode(
+  enabled: boolean,
+) {
+  return chrome.runtime.sendMessage({
+    target: "offscreen",
+    type: "SET_LOFI_MODE",
+    enabled,
+  });
+}
+
+async function getAudioState() {
+  const offscreenUrl = chrome.runtime.getURL(
+    "src/offscreen/offscreen.html",
+  );
+
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"],
+    documentUrls: [offscreenUrl],
+  });
+
+  if (contexts.length === 0) {
+    return {
+      success: true,
+      state: {
+        processing: false,
+        lofiMode: false,
+      },
+    };
+  }
+
+  return chrome.runtime.sendMessage({
+    target: "offscreen",
+    type: "GET_AUDIO_STATE",
+  });
 }
 
 async function stopAudioCapture(): Promise<{

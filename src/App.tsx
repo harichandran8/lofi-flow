@@ -10,6 +10,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [lofiMode,setLofiMode] = useState(false)
   const [error, setError] = useState<string | null>(null);
 
   const getActiveTab = () => {
@@ -46,8 +47,34 @@ function App() {
     );
   };
 
+  const getAudioState = () => {
+  chrome.runtime.sendMessage(
+    {
+      type: "GET_AUDIO_STATE",
+    },
+    (response) => {
+      if (chrome.runtime.lastError) {
+        return;
+      }
+
+      if (!response?.success) {
+        return;
+      }
+
+      setProcessing(
+        response.state.processing,
+      );
+
+      setLofiMode(
+        response.state.lofiMode,
+      );
+    },
+  );
+};
+
   useEffect(() => {
     getActiveTab();
+    getAudioState()
   }, []);
 
   const startProcessing = () => {
@@ -119,6 +146,7 @@ function App() {
         }
 
         setProcessing(false);
+        setLofiMode(false)
         setLoading(false);
       },
     );
@@ -131,6 +159,40 @@ function App() {
       return "Unknown website";
     }
   };
+
+  const toggleLofiMode = () => {
+  if (!processing) {
+    return;
+  }
+
+  const nextMode = !lofiMode;
+
+  chrome.runtime.sendMessage(
+    {
+      type: "SET_LOFI_MODE",
+      enabled: nextMode,
+    },
+    (response) => {
+      if (chrome.runtime.lastError) {
+        setError(
+          chrome.runtime.lastError.message ??
+            "Unable to change Lofi mode.",
+        );
+        return;
+      }
+
+      if (!response?.success) {
+        setError(
+          response?.error ??
+            "Unable to change Lofi mode.",
+        );
+        return;
+      }
+
+      setLofiMode(nextMode);
+    },
+  );
+};
 
   return (
     <main className="w-[360px] min-h-[420px] bg-[#0f0f12] p-5 text-white">
@@ -217,20 +279,34 @@ function App() {
           </span>
 
           <span className="text-sm font-medium">
-            Normal
+            {lofiMode?'Lofi':'Normal'}
           </span>
         </div>
       </section>
 
       {processing ? (
-        <button
-          type="button"
-          onClick={stopProcessing}
-          disabled={loading}
-          className="mt-5 w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {loading ? "Stopping..." : "Stop Processing"}
-        </button>
+        <>
+    <button
+      type="button"
+      onClick={toggleLofiMode}
+      disabled={loading}
+      className="mt-5 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {lofiMode
+        ? "Disable Lofi Mode"
+        : "Enable Lofi Mode"}
+    </button>
+
+    <button
+      type="button"
+      onClick={stopProcessing}
+      disabled={loading}
+      className="mt-4 w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {loading ? "Stopping..." : "Stop Processing"}
+      
+    </button>
+  </>
       ) : (
         <button
           type="button"
@@ -243,7 +319,7 @@ function App() {
       )}
 
       <p className="mt-4 text-center text-xs text-gray-600">
-        Phase 3: tab audio capture
+        Phase 4: audio engine
       </p>
     </main>
   );
