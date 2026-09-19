@@ -1,6 +1,57 @@
+import { useEffect, useState } from "react";
+
+interface ActiveTab {
+  id?: number;
+  title: string;
+  url: string;
+}
+
 function App() {
+  const [activeTab, setActiveTab] = useState<ActiveTab | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const getActiveTab = () => {
+    setLoading(true);
+    setError(null);
+
+    chrome.runtime.sendMessage(
+      {
+        type: "GET_ACTIVE_TAB",
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          setError(chrome.runtime.lastError.message ?? 'Unable to communicate with extension.');
+          setLoading(false);
+          return;
+        }
+
+        if (!response?.success) {
+          setError(response?.error ?? "Unable to detect active tab.");
+          setLoading(false);
+          return;
+        }
+
+        setActiveTab(response.tab);
+        setLoading(false);
+      },
+    );
+  };
+
+  useEffect(() => {
+    getActiveTab();
+  }, []);
+
+  const getHostname = (url: string) => {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return "Unknown website";
+    }
+  };
+
   return (
-    <main className="w-[360px] min-h-[420px] bg-[#0f0f12] p-5">
+    <main className="w-[360px] min-h-[420px] bg-[#0f0f12] p-5 text-white">
       <header className="mb-6">
         <h1 className="text-xl font-semibold tracking-tight">
           LofiFlow
@@ -17,9 +68,27 @@ function App() {
             Current Tab
           </p>
 
-          <p className="mt-1 text-base font-medium">
-            No tab connected
-          </p>
+          {loading ? (
+            <p className="mt-1 text-sm text-gray-400">
+              Detecting tab...
+            </p>
+          ) : error ? (
+            <p className="mt-1 text-sm text-red-400">
+              {error}
+            </p>
+          ) : (
+            <>
+              <p className="mt-1 text-base font-medium">
+                {activeTab?.title}
+              </p>
+
+              <p className="mt-1 text-xs text-gray-500">
+                {activeTab?.url
+                  ? getHostname(activeTab.url)
+                  : "Unknown website"}
+              </p>
+            </>
+          )}
         </div>
 
         <div className="rounded-xl bg-black/20 p-4">
@@ -65,14 +134,15 @@ function App() {
 
       <button
         type="button"
-        disabled
-        className="mt-5 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white opacity-50"
+        onClick={getActiveTab}
+        disabled={loading}
+        className="mt-5 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Start Processing
+        {loading ? "Detecting..." : "Refresh Current Tab"}
       </button>
 
       <p className="mt-4 text-center text-xs text-gray-600">
-        Audio processing will be added in the next phase.
+        Audio processing will be added in a later phase.
       </p>
     </main>
   );
