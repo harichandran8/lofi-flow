@@ -1,6 +1,6 @@
-let audioContext: AudioContext | null = null;
-let mediaStream: MediaStream | null = null;
-let sourceNode: MediaStreamAudioSourceNode | null = null;
+import { AudioEngine } from "../audio/AudioEngine";
+
+const audioEngine = new AudioEngine();
 
 chrome.runtime.onMessage.addListener(
   (message, _sender, sendResponse) => {
@@ -27,50 +27,50 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message.type === "STOP_CAPTURE") {
-      stopCapture();
-      sendResponse({ success: true });
+      audioEngine.stop();
+
+      sendResponse({
+        success: true,
+      });
+
       return true;
     }
+
+    if (message.type === "SET_LOFI_MODE") {
+      audioEngine.setLofiMode(
+        message.enabled,
+      );
+
+      sendResponse({
+        success: true,
+      });
+
+      return true;
+    }
+
+    if (message.type === "GET_AUDIO_STATE") {
+  sendResponse({
+    success: true,
+    state: audioEngine.getState(),
+  });
+
+  return true;
+}
   },
 );
 
-async function startCapture(streamId: string): Promise<void> {
-  if (mediaStream) {
-    stopCapture();
-  }
+async function startCapture(
+  streamId: string,
+): Promise<void> {
+  const mediaStream =
+    await navigator.mediaDevices.getUserMedia({
+      audio: {
+        mandatory: {
+          chromeMediaSource: "tab",
+          chromeMediaSourceId: streamId,
+        },
+      } as MediaTrackConstraints,
+    });
 
-  mediaStream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      mandatory: {
-        chromeMediaSource: "tab",
-        chromeMediaSourceId: streamId,
-      },
-    } as MediaTrackConstraints,
-  });
-
-  audioContext = new AudioContext();
-
-  sourceNode = audioContext.createMediaStreamSource(mediaStream);
-
-  sourceNode.connect(audioContext.destination);
-
-  if (audioContext.state === "suspended") {
-    await audioContext.resume();
-  }
-}
-
-function stopCapture(): void {
-  sourceNode?.disconnect();
-  sourceNode = null;
-
-  mediaStream?.getTracks().forEach((track) => {
-    track.stop();
-  });
-
-  mediaStream = null;
-
-  if (audioContext) {
-    audioContext.close();
-    audioContext = null;
-  }
+  await audioEngine.start(mediaStream);
 }
