@@ -9,6 +9,7 @@ interface ActiveTab {
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab | null>(null);
   const [loading, setLoading] = useState(true);
+  const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const getActiveTab = () => {
@@ -21,13 +22,20 @@ function App() {
       },
       (response) => {
         if (chrome.runtime.lastError) {
-          setError(chrome.runtime.lastError.message ?? 'Unable to communicate with extension.');
+          setError(
+            chrome.runtime.lastError.message ??
+              "Unable to communicate with extension.",
+          );
+
           setLoading(false);
           return;
         }
 
         if (!response?.success) {
-          setError(response?.error ?? "Unable to detect active tab.");
+          setError(
+            response?.error ?? "Unable to detect active tab.",
+          );
+
           setLoading(false);
           return;
         }
@@ -41,6 +49,80 @@ function App() {
   useEffect(() => {
     getActiveTab();
   }, []);
+
+  const startProcessing = () => {
+    if (!activeTab?.id) {
+      setError("No active tab available.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    chrome.runtime.sendMessage(
+      {
+        type: "START_AUDIO_CAPTURE",
+        tabId: activeTab.id,
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          setError(
+            chrome.runtime.lastError.message ??
+              "Unable to start audio capture.",
+          );
+
+          setLoading(false);
+          return;
+        }
+
+        if (!response?.success) {
+          setError(
+            response?.error ?? "Unable to start audio capture.",
+          );
+
+          setLoading(false);
+          return;
+        }
+
+        setProcessing(true);
+        setLoading(false);
+      },
+    );
+  };
+
+  const stopProcessing = () => {
+    setLoading(true);
+    setError(null);
+
+    chrome.runtime.sendMessage(
+      {
+        type: "STOP_AUDIO_CAPTURE",
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          setError(
+            chrome.runtime.lastError.message ??
+              "Unable to stop audio capture.",
+          );
+
+          setLoading(false);
+          return;
+        }
+
+        if (!response?.success) {
+          setError(
+            response?.error ?? "Unable to stop audio capture.",
+          );
+
+          setLoading(false);
+          return;
+        }
+
+        setProcessing(false);
+        setLoading(false);
+      },
+    );
+  };
 
   const getHostname = (url: string) => {
     try {
@@ -68,7 +150,7 @@ function App() {
             Current Tab
           </p>
 
-          {loading ? (
+          {loading && !activeTab ? (
             <p className="mt-1 text-sm text-gray-400">
               Detecting tab...
             </p>
@@ -103,7 +185,9 @@ function App() {
               </p>
 
               <p className="text-xs text-gray-500">
-                Audio not connected
+                {processing
+                  ? "Audio connected"
+                  : "Audio not connected"}
               </p>
             </div>
           </div>
@@ -116,8 +200,14 @@ function App() {
             Audio
           </span>
 
-          <span className="text-sm text-gray-500">
-            Not Connected
+          <span
+            className={`text-sm ${
+              processing
+                ? "text-green-400"
+                : "text-gray-500"
+            }`}
+          >
+            {processing ? "Connected" : "Not Connected"}
           </span>
         </div>
 
@@ -132,17 +222,28 @@ function App() {
         </div>
       </section>
 
-      <button
-        type="button"
-        onClick={getActiveTab}
-        disabled={loading}
-        className="mt-5 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {loading ? "Detecting..." : "Refresh Current Tab"}
-      </button>
+      {processing ? (
+        <button
+          type="button"
+          onClick={stopProcessing}
+          disabled={loading}
+          className="mt-5 w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {loading ? "Stopping..." : "Stop Processing"}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={startProcessing}
+          disabled={loading || !activeTab?.id}
+          className="mt-5 w-full rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {loading ? "Processing..." : "Start Processing"}
+        </button>
+      )}
 
       <p className="mt-4 text-center text-xs text-gray-600">
-        Audio processing will be added in a later phase.
+        Phase 3: tab audio capture
       </p>
     </main>
   );
