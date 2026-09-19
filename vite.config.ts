@@ -12,4 +12,11 @@ export default defineConfig({
       manifest,
     }),
   ],
+  build:{
+    rollupOptions:{
+      input:{
+        offscreen:'src/offscreen/offscreen.html',
+      },
+    },
+  },
 });
